@@ -5,7 +5,7 @@ functions:
         working_dir: /
         script: |-
           set -o errexit
-          sudo apt-get install clang-format libprocps-dev
+          sudo apt-get install -y clang-format libprocps-dev
   "fetch source":
     - command: git.get_project
       params: {directory: realm-core}
