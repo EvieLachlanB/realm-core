@@ -50,7 +50,7 @@ tasks:
     params:
       aws_key: '${artifacts_aws_access_key}'
       aws_secret: '${artifacts_aws_secret_key}'
-      remote_file: '${project}/${branch_name}/realm-core-artifacts.tar.gz'
+      remote_file: '${project}/${branch_name}/realm-core-build-artifacts.tar.gz'
       bucket: mciuploads
       permissions: public-read
       local_file: 'realm-build-artifacts.tar.gz'
