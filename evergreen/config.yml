@@ -26,8 +26,6 @@ tasks:
       working_dir: realm-core
       script: |-
         set -o errexit
-        source ./evergreen/find-cmake.sh
-
         mkdir build
         cd build
         cmake \
