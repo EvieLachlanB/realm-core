@@ -41,7 +41,7 @@ tasks:
         set -o errexit
         mkdir build
         cd build
-        ./cmake_binaries/bin/cmake \
+        ../cmake_binaries/bin/cmake \
           -G Ninja \
           -DREALM_BUILD_COMMANDLINE_TOOLS=On \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=On \
