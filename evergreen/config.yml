@@ -49,7 +49,7 @@ tasks:
           -DCMAKE_ENABLE_ENCRYPTION=On \
           -DCMAKE_ENABLE_SYNC=On \
           -DPROCPS_LIBRARY=../procps_binaries/lib \
-          -DPROCPS_INCLUDE_DIR=../procps_include/lib \
+          -DPROCPS_INCLUDE_DIR=../procps_include/include \
           ..
 
         ninja build
