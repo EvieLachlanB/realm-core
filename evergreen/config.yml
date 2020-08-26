@@ -51,7 +51,7 @@ tasks:
           -DPROCPS_INCLUDE_DIR=../procps_binaries/include \
           ..
 
-        ninja build
+        ninja
   - command: archive.targz_pack
     params:
       target: realm-build-artifacts.tar.gz
