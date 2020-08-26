@@ -6,19 +6,11 @@ functions:
         script: |-
           set -o errexit verbose
           cmake_url="https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.tar.gz"
-          procps_url="https://gitlab.com/procps-ng/procps/-/archive/v3.3.16/procps-v3.3.16.tar.gz"
 
           mkdir cmake_binaries && cd cmake_binaries
           curl -L $cmake_url | tar -xz --strip-components=1
           cd ..
-          BASE_DIR=$(pwd)
-          mkdir procps_build && cd procps_build
-          curl -L $procps_url | tar -xz --strip-components=1
-          ./autogen.sh
-          ./configure --prefix=/ --disable-shared
-          make DESTDIR=$BASE_DIR/procps_binaries -j$(grep -c proc /proc/cpuinfo) install
-          cd ..
-          rm -rf procps_build
+
   "fetch source":
     - command: git.get_project
       params: {directory: realm-core}
@@ -42,32 +34,68 @@ tasks:
         mkdir build
         cd build
         ../cmake_binaries/bin/cmake \
-          -G Ninja \
           -DREALM_BUILD_COMMANDLINE_TOOLS=On \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=On \
           -DCMAKE_ENABLE_ENCRYPTION=On \
           -DCMAKE_ENABLE_SYNC=On \
-          -DPROCPS_LIBRARY=../procps_binaries/lib \
-          -DPROCPS_INCLUDE_DIR=../procps_binaries/include \
+          -DCMAKE_C_COMPILER=${c_compiler|clang} \
+          -DCMAKE_CXX_COMPILER=${cxx_compiler|clang++} \
           ..
 
-        ninja
+        make -j$(grep -c proc /proc/cpuinfo)
+  - command: shell.exec
+    params:
+      working_dir: realm-core/build
+      script: |-
+        set -o errexit
+        set -o verbose
+
+        FILES_TO_STRIP=$(find -type f -executable -exec file {} + | \
+            egrep "ELF (64|32)-bit LSB executable.+not stripped$" | \
+            cut -f1 -d:)
+        DEBUG_SYMBOL_DIR=debug_symbols
+        mkdir $DEBUG_SYMBOL_DIR
+        for FILE_TO_STRIP in $FILES_TO_STRIP; do
+            DEBUG_SYMBOL_FILE=$(echo $FILE_TO_STRIP | cut -f2- -d/ | sed 's|/|_|g')
+            echo "stripping $FILE_TO_STRIP into $DEBUG_SYMBOL_FILE"
+            objcopy --only-keep-debug "$FILE_TO_STRIP" "$DEBUG_SYMBOL_DIR/$DEBUG_SYMBOL_FILE.debug"
+            strip --strip-debug --strip-unneeded "$FILE_TO_STRIP"
+            objcopy --add-gnu-debuglink="$DEBUG_SYMBOL_DIR/$DEBUG_SYMBOL_FILE.debug" "$FILE_TO_STRIP"
+        done
+
   - command: archive.targz_pack
     params:
-      target: realm-build-artifacts.tar.gz
+      target: realm-artifacts.tar.gz
       source_dir: realm-core/build
       include: [./**]
       exclude_files:
         - "*.o"
+        - "*.a"
+        - "debug_symbols/**"
+  - command: archive.targz_pack
+    params:
+      target: realm-debug-symbols.tar.gz
+      source_dir: realm-core/build
+      include: [./debug_symbols/**]
   - command: s3.put
     params:
       aws_key: '${artifacts_aws_access_key}'
       aws_secret: '${artifacts_aws_secret_key}'
-      remote_file: '${project}/${branch_name}/realm-core-build-artifacts.tar.gz'
+      remote_file: '${project}/${branch_name}/${task_id}/${execution}/realm-core-artifacts.tar.gz'
       bucket: mciuploads
       permissions: public-read
-      local_file: 'realm-build-artifacts.tar.gz'
+      local_file: 'realm-artifacts.tar.gz'
       content_type: '${content_type|application/x-gzip}'
+  - command: s3.put
+    params:
+      aws_key: '${artifacts_aws_access_key}'
+      aws_secret: '${artifacts_aws_secret_key}'
+      remote_file: '${project}/${branch_name}/${task_id}/${execution}/realm-core-debug-symbols.tar.gz'
+      bucket: mciuploads
+      permissions: public-read
+      local_file: 'realm-debug-symbols.tar.gz'
+      content_type: '${content_type|application/x-gzip}'
+
 - name: lint
   commands:
   - func: "fetch source"
@@ -88,7 +116,7 @@ tasks:
 # NOTE: When adding a new variant, update the "upload-all" task.
 buildvariants:
 - name: ubuntu2004
-  display_name: "Ubuntu 20.04 64-bit"
+  display_name: "Ubuntu 20.04"
   run_on: ubuntu2004-small
   expansions:
   tasks:
@@ -96,5 +124,12 @@ buildvariants:
     distros:
     - ubuntu2004-large
   - lint
-
+- name: rhel70
+  display_name: "RHEL 7"
+  run_on: rhel70-small
+  expansions:
+  tasks:
+  - name: compile
+    distros:
+    - rhel70-large
 
