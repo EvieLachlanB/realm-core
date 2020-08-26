@@ -1,20 +1,19 @@
-variables:
-  - &globals
-    cmake_url: "https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.tar.gz"
-    procps_url: "https://gitlab.com/procps-ng/procps/-/archive/v3.3.16/procps-v3.3.16.tar.gz"
 functions:
   "setup packages":
     - command: shell.exec
       params:
         working_dir: realm-core
         script: |-
-          set -o errexit
+          set -o errexit verbose
+          cmake_url="https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.tar.gz"
+          procps_url="https://gitlab.com/procps-ng/procps/-/archive/v3.3.16/procps-v3.3.16.tar.gz"
+
           mkdir cmake_binaries && cd cmake_binaries
-          curl -L ${cmake_url} | tar -xz --strip-components=1
+          curl -L $cmake_url | tar -xz --strip-components=1
           cd ..
           BASE_DIR=$(pwd)
           mkdir procps_build && cd procps_build
-          curl -L ${procps_url} | tar -xz --strip-components=1
+          curl -L $procps_url | tar -xz --strip-components=1
           ./autogen.sh
           ./configure --prefix=/ --disable-shared
           make DESTDIR=$BASE_DIR/procps_binaries -j$(grep -c proc /proc/cpuinfo) install
