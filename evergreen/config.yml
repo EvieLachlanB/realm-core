@@ -1,11 +1,25 @@
+variables:
+  - &globals
+    cmake_url: "https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.tar.gz"
+    procps_url: "https://gitlab.com/procps-ng/procps/-/archive/v3.3.16/procps-v3.3.16.tar.gz"
 functions:
   "setup packages":
     - command: shell.exec
       params:
-        working_dir: /
+        working_dir: realm-core
         script: |-
           set -o errexit
-          sudo apt-get install -y clang-format libprocps-dev
+          mkdir cmake_binaries && cd cmake_binaries
+          curl -L ${cmake_url} | tar -xz --strip-components=1
+          cd ..
+          BASE_DIR=$(pwd)
+          mkdir procps_build && cd procps_build
+          curl -L ${procps_url} | tar -xz --strip-components=1
+          ./autogen.sh
+          ./configure --prefix=/ --disable-shared
+          make DESTDIR=$BASE_DIR/procps_binaries -j$(grep -c proc /proc/cpuinfo) install
+          cd ..
+          rm -rf procps_build
   "fetch source":
     - command: git.get_project
       params: {directory: realm-core}
@@ -19,8 +33,8 @@ functions:
 tasks:
 - name: compile
   commands:
-  - func: "setup packages"
   - func: "fetch source"
+  - func: "setup packages"
   - command: shell.exec
     params:
       working_dir: realm-core
@@ -28,12 +42,14 @@ tasks:
         set -o errexit
         mkdir build
         cd build
-        cmake \
+        ./cmake_binaries/bin/cmake \
           -G Ninja \
           -DREALM_BUILD_COMMANDLINE_TOOLS=On \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=On \
           -DCMAKE_ENABLE_ENCRYPTION=On \
           -DCMAKE_ENABLE_SYNC=On \
+          -DPROCPS_LIBRARY=../procps_binaries/lib \
+          -DPROCPS_INCLUDE_DIR=../procps_include/lib \
           ..
 
         ninja build
@@ -55,8 +71,8 @@ tasks:
       content_type: '${content_type|application/x-gzip}'
 - name: lint
   commands:
-  - func: "setup packages"
   - func: "fetch source"
+  - func: "setup packages"
   - command: shell.exec
     params:
       working_dir: realm-core
