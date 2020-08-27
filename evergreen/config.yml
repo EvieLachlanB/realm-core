@@ -1,14 +1,13 @@
 functions:
-  "setup packages":
+  "fetch cmake binaries":
     - command: shell.exec
       params:
         working_dir: realm-core
         script: |-
           set -o errexit verbose
-          cmake_url="https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.tar.gz"
 
           mkdir cmake_binaries && cd cmake_binaries
-          curl -L $cmake_url | tar -xz --strip-components=1
+          curl -L ${cmake_url} | tar -xz --strip-components=1
           cd ..
 
   "fetch source":
@@ -25,7 +24,7 @@ tasks:
 - name: compile
   commands:
   - func: "fetch source"
-  - func: "setup packages"
+  - func: "fetch cmake binaries"
   - command: shell.exec
     params:
       working_dir: realm-core
@@ -33,13 +32,20 @@ tasks:
         set -o errexit
         mkdir build
         cd build
-        ../cmake_binaries/bin/cmake \
+
+        compiler_flags=""
+        if [ -n "${c_compiler}" ]; then
+            [ -n "${cxx_compiler}" ] ||
+                (echo "C compiler defined as ${c_compiler} but C++ compiler is undefined"; exit 1)
+            compiler_flags = "-DCMAKE_C_COMPILER=${c_compiler} -DCMAKE_CXX_COMPILER=${cxx_compiler}"
+        fi
+
+        ${cmake|cmake} \
           -DREALM_BUILD_COMMANDLINE_TOOLS=On \
           -DREALM_ENABLE_ENCRYPTION=On \
           -DREALM_ENABLE_SYNC=On \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=On \
-          -DCMAKE_C_COMPILER=${c_compiler|clang} \
-          -DCMAKE_CXX_COMPILER=${cxx_compiler|clang++} \
+          $compiler_flags \
           ..
 
         make -j$(grep -c proc /proc/cpuinfo)
@@ -99,7 +105,7 @@ tasks:
 - name: lint
   commands:
   - func: "fetch source"
-  - func: "setup packages"
+  - func: "fetch cmake binaries"
   - command: shell.exec
     params:
       working_dir: realm-core
@@ -119,6 +125,8 @@ buildvariants:
   display_name: "Ubuntu 20.04"
   run_on: ubuntu2004-small
   expansions:
+    cmake_url: "https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.tar.gz"
+    cmake: "../cmake_binaries/bin/cmake"
   tasks:
   - name: compile
     distros:
@@ -130,6 +138,8 @@ buildvariants:
   expansions:
     c_compiler: /opt/mongodbtoolchain/v3/bin/gcc
     cxx_compiler: /opt/mongodbtoolchain/v3/bin/g++
+    cmake_url: "https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.tar.gz"
+    cmake: "../cmake_binaries/bin/cmake"
   tasks:
   - name: compile
     distros:
@@ -144,3 +154,13 @@ buildvariants:
     distros:
     - ubuntu2004-arm64-large
 
+- name: macos-1014
+  display_name: "MacOS 10.14"
+  run_on: macos-1014-test
+  expansions:
+    cmake_url: "https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Darwin-x86_64.tar.gz"
+    cmake: "../cmake_binaries/CMake.app/Contents/bin/cmake"
+  tasks:
+  - name: compile
+    distros:
+    - macos-1014
