@@ -23,8 +23,6 @@ functions:
 tasks:
 - name: compile
   commands:
-  - func: "fetch source"
-  - func: "fetch cmake binaries"
   - command: shell.exec
     params:
       working_dir: realm-core
@@ -40,67 +38,65 @@ tasks:
             compiler_flags = "-DCMAKE_C_COMPILER=${c_compiler} -DCMAKE_CXX_COMPILER=${cxx_compiler}"
         fi
 
-        ${cmake|cmake} \
+        ${cmake_bindir}/cmake \
           -DREALM_BUILD_COMMANDLINE_TOOLS=On \
           -DREALM_ENABLE_ENCRYPTION=On \
           -DREALM_ENABLE_SYNC=On \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=On \
-          $compiler_flags \
+          $compiler_flags ${extra_flags}\
           ..
 
         make -j$(grep -c proc /proc/cpuinfo)
+- name: package
+  depends_on:
+  - "compile"
+  commands:
   - command: shell.exec
     params:
       working_dir: realm-core/build
       script: |-
         set -o errexit
-        set -o verbose
 
-        FILES_TO_STRIP=$(find -type f -executable -exec file {} + | \
-            egrep "ELF (64|32)-bit LSB executable.+not stripped$" | \
-            cut -f1 -d:)
-        DEBUG_SYMBOL_DIR=debug_symbols
-        mkdir $DEBUG_SYMBOL_DIR
-        for FILE_TO_STRIP in $FILES_TO_STRIP; do
-            DEBUG_SYMBOL_FILE=$(echo $FILE_TO_STRIP | cut -f2- -d/ | sed 's|/|_|g')
-            echo "stripping $FILE_TO_STRIP into $DEBUG_SYMBOL_FILE"
-            objcopy --only-keep-debug "$FILE_TO_STRIP" "$DEBUG_SYMBOL_DIR/$DEBUG_SYMBOL_FILE.debug"
-            strip --strip-debug --strip-unneeded "$FILE_TO_STRIP"
-            objcopy --add-gnu-debuglink="$DEBUG_SYMBOL_DIR/$DEBUG_SYMBOL_FILE.debug" "$FILE_TO_STRIP"
-        done
-
-  - command: archive.targz_pack
-    params:
-      target: realm-artifacts.tar.gz
-      source_dir: realm-core/build
-      include: [./**]
-      exclude_files:
-        - "*.o"
-        - "*.a"
-        - "debug_symbols/**"
-  - command: archive.targz_pack
-    params:
-      target: realm-debug-symbols.tar.gz
-      source_dir: realm-core/build
-      include: [./debug_symbols/**]
+        ${cmake_bindir}/cpack -G TGZ -D "CPACK_PACKAGE_FILE_NAME=realm-core-artifacts"
   - command: s3.put
     params:
       aws_key: '${artifacts_aws_access_key}'
       aws_secret: '${artifacts_aws_secret_key}'
-      remote_file: '${project}/${branch_name}/${task_id}/${execution}/realm-core-artifacts.tar.gz'
+      remote_file: '${project}/${branch_name}/${task_id}/${execution}/realm-core-artifacts-Unspecified.tar.gz'
       bucket: mciuploads
       permissions: public-read
-      local_file: 'realm-artifacts.tar.gz'
+      local_file: 'realm-core/build/realm-core-artifacts-Unspecified.tar.gz'
       content_type: '${content_type|application/x-gzip}'
   - command: s3.put
     params:
       aws_key: '${artifacts_aws_access_key}'
       aws_secret: '${artifacts_aws_secret_key}'
-      remote_file: '${project}/${branch_name}/${task_id}/${execution}/realm-core-debug-symbols.tar.gz'
+      remote_file: '${project}/${branch_name}/${task_id}/${execution}/realm-core-artifacts-devel.tar.gz'
       bucket: mciuploads
       permissions: public-read
-      local_file: 'realm-debug-symbols.tar.gz'
+      local_file: 'realm-core/build/realm-core-artifacts-devel.tar.gz'
       content_type: '${content_type|application/x-gzip}'
+  - command: s3.put
+    params:
+      aws_key: '${artifacts_aws_access_key}'
+      aws_secret: '${artifacts_aws_secret_key}'
+      remote_file: '${project}/${branch_name}/${task_id}/${execution}/realm-core-artifacts-runtime.tar.gz'
+      bucket: mciuploads
+      permissions: public-read
+      local_file: 'realm-core/build/realm-core-artifacts-runtime.tar.gz'
+      content_type: '${content_type|application/x-gzip}'
+
+- name: test
+  depends_on:
+  - "compile"
+  commands:
+  - command: shell.exec
+    params:
+      working_dir: realm-core/build
+      script: |-
+        set -o errexit
+
+        ${cmake_bindir}/ctest -V
 
 - name: lint
   commands:
@@ -118,6 +114,18 @@ tasks:
         echo "ERROR: you need to run git clang-format on your commit"
         echo $out
         exit 1
+
+task_groups:
+- name: compile_test_and_package
+  max_hosts: 1
+  setup_group_can_fail_task: true
+  setup_group:
+  - func: "fetch source"
+  - func: "fetch cmake binaries"
+  tasks:
+  - compile
+  - package
+  - test
  
 # NOTE: When adding a new variant, update the "upload-all" task.
 buildvariants:
@@ -126,9 +134,9 @@ buildvariants:
   run_on: ubuntu2004-small
   expansions:
     cmake_url: "https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.tar.gz"
-    cmake: "../cmake_binaries/bin/cmake"
+    cmake_bindir: "../cmake_binaries/bin"
   tasks:
-  - name: compile
+  - name: compile_test_and_package
     distros:
     - ubuntu2004-large
 
@@ -139,9 +147,9 @@ buildvariants:
     c_compiler: /opt/mongodbtoolchain/v3/bin/gcc
     cxx_compiler: /opt/mongodbtoolchain/v3/bin/g++
     cmake_url: "https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.tar.gz"
-    cmake: "../cmake_binaries/bin/cmake"
+    cmake_bindir: "../cmake_binaries/bin"
   tasks:
-  - name: compile
+  - name: compile_test_and_package
     distros:
     - rhel70-large
 
@@ -150,7 +158,7 @@ buildvariants:
   run_on: ubuntu2004-arm64-small
   expansions:
   tasks:
-  - name: compile
+  - name: compile_test_and_package
     distros:
     - ubuntu2004-arm64-large
 
@@ -159,8 +167,8 @@ buildvariants:
   run_on: macos-1014-test
   expansions:
     cmake_url: "https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Darwin-x86_64.tar.gz"
-    cmake: "../cmake_binaries/CMake.app/Contents/bin/cmake"
+    cmake_bindir: "../cmake_binaries/CMake.app/Contents/bin"
   tasks:
-  - name: compile
+  - name: compile_test_and_package
     distros:
     - macos-1014
