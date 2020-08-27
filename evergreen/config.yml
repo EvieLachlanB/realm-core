@@ -123,13 +123,24 @@ buildvariants:
   - name: compile
     distros:
     - ubuntu2004-large
-  - lint
+
 - name: rhel70
   display_name: "RHEL 7"
   run_on: rhel70-small
   expansions:
+    c_compiler: /opt/mongodbtoolchain/v3/bin/gcc
+    cxx_compiler: /opt/mongodbtoolchain/v3/bin/g++
   tasks:
   - name: compile
     distros:
     - rhel70-large
+
+- name: ubuntu2004-arm64
+  display_name: "Ubuntu 20.04 ARM64"
+  run_on: ubuntu2004-arm64-small
+  expansions:
+  tasks:
+  - name: compile
+    distros:
+    - ubuntu2004-arm64-large
 
