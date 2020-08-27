@@ -35,7 +35,7 @@ tasks:
         if [ -n "${c_compiler}" ]; then
             [ -n "${cxx_compiler}" ] ||
                 (echo "C compiler defined as ${c_compiler} but C++ compiler is undefined"; exit 1)
-            compiler_flags = "-DCMAKE_C_COMPILER=${c_compiler} -DCMAKE_CXX_COMPILER=${cxx_compiler}"
+            compiler_flags="-DCMAKE_C_COMPILER=${c_compiler} -DCMAKE_CXX_COMPILER=${cxx_compiler}"
         fi
 
         ${cmake_bindir}/cmake \
