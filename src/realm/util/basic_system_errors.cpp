@@ -36,8 +36,8 @@ class system_category : public std::error_category {
 system_category g_system_category;
     
       // Helper function to adapt the result from glibc's variant of strerror_r.
-  static char* strerror_result(int, const char* s) { return s; }
-  static char* strerror_result(const char* s, const char*) { return s; }
+  static char* strerror_result(int, char* s) { return s; }
+  static char* strerror_result(char* s, const char*) { return s; }
 
 const char* system_category::name() const noexcept
 {
