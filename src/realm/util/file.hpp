@@ -27,6 +27,7 @@
 #include <string>
 #include <streambuf>
 #include <iostream>
+#include <sys/types.h>
 
 #ifndef _WIN32
 #include <dirent.h> // POSIX.1-2001
