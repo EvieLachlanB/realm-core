@@ -54,6 +54,11 @@ enum basic_system_errors {
 };
 
 std::error_code make_error_code(basic_system_errors) noexcept;
+    
+ private:
+  // Helper function to adapt the result from glibc's variant of strerror_r.
+  static const char* strerror_result(int, const char* s) { return s; }
+  static const char* strerror_result(const char* s, const char*) { return s; }
 
 } // namespace error
 } // namespace util
