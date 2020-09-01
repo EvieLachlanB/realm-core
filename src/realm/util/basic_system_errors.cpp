@@ -69,7 +69,7 @@ std::string system_category::message(int value) const
 
     {
         char* msg = nullptr;
-        if (REALM_LIKELY((msg = strerror_r(value, buffer, max_msg_size)) != nullptr)) {
+        if (REALM_LIKELY((msg = strerror_result(strerror_r(value, buffer, max_msg_size),buffer)) != nullptr)) {
             return msg; // Guaranteed to be NULL-terminated
         }
     }
