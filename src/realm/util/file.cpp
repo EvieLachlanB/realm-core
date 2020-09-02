@@ -751,7 +751,7 @@ void File::prealloc(size_t size)
 #endif
     };
 
-#if defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L // POSIX.1-2001 version
+#if (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L) || (defined(_XOPEN_SOURCE) && _XOPEN_SOURCE >= 600) // POSIX.1-2001 version
     // Mostly Linux only
     if (!prealloc_if_supported(0, new_size)) {
         consume_space_interlocked();
