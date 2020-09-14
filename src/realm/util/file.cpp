@@ -16,6 +16,7 @@
  *
  **************************************************************************/
 
+#include <features.h>
 #include <climits>
 #include <limits>
 #include <algorithm>
@@ -47,8 +48,6 @@
 #include <realm/util/string_buffer.hpp>
 #include <realm/util/features.h>
 #include <realm/util/file.hpp>
-
-#include <features.h>
 
 using namespace realm;
 using namespace realm::util;
