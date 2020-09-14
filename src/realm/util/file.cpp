@@ -34,7 +34,6 @@
 #include <direct.h>
 #else
 #include <unistd.h>
-#include <features.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -752,7 +751,7 @@ void File::prealloc(size_t size)
 #endif
     };
 
-#if (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L) || defined(_XOPEN_SOURCE) // POSIX.1-2001 version
+#if 1==1 || defined(_XOPEN_SOURCE) // POSIX.1-2001 version
     // Mostly Linux only
     if (!prealloc_if_supported(0, new_size)) {
         consume_space_interlocked();
