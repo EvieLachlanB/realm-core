@@ -753,6 +753,7 @@ void File::prealloc(size_t size)
     };
 
 #if defined(_XOPEN_SOURCE) // POSIX.1-2001 version
+#warning _XOPEN_SOURCE
     // Mostly Linux only
     if (!prealloc_if_supported(0, new_size)) {
         consume_space_interlocked();
