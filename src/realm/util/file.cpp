@@ -34,6 +34,7 @@
 #include <direct.h>
 #else
 #include <unistd.h>
+#include <features.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
