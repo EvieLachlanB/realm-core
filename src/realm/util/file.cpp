@@ -34,7 +34,6 @@
 #include <direct.h>
 #else
 #include <unistd.h>
-#include <features.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -48,6 +47,8 @@
 #include <realm/util/string_buffer.hpp>
 #include <realm/util/features.h>
 #include <realm/util/file.hpp>
+
+#include <features.h>
 
 using namespace realm;
 using namespace realm::util;
