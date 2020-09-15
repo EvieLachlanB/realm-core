@@ -105,7 +105,7 @@ Backtrace& Backtrace::operator=(const Backtrace& other) noexcept
 
 Backtrace Backtrace::capture() noexcept
 {
-#if REALM_PLATFORM_APPLE || (defined(__linux__) && !REALM_ANDROID)
+#if REALM_PLATFORM_APPLE || (defined(__GLIBC__) && !REALM_ANDROID)
     static_cast<void>(g_backtrace_unsupported_error);
     void* callstack[g_backtrace_depth];
     int frames = ::backtrace(callstack, g_backtrace_depth);
