@@ -16,7 +16,6 @@
  *
  **************************************************************************/
 
-#include <features.h>
 #include <climits>
 #include <limits>
 #include <algorithm>
@@ -752,8 +751,7 @@ void File::prealloc(size_t size)
 #endif
     };
 
-#if defined(_XOPEN_SOURCE) // POSIX.1-2001 version
-#warning _XOPEN_SOURCE
+#if (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L) || defined(_GNU_SOURCE) // POSIX.1-2001 version
     // Mostly Linux only
     if (!prealloc_if_supported(0, new_size)) {
         consume_space_interlocked();
