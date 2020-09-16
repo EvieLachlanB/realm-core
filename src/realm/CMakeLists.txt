@@ -349,7 +349,7 @@ if(UNIX AND NOT APPLE)
                 WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/openssl"
             )
         endif()
-        if(EXISTS /usr/lib/libcrypto.a AND /usr/lib/libssl.a)
+        if(EXISTS /usr/lib/libcrypto.a AND EXISTS /usr/lib/libssl.a)
 		message(STATUS "Overwriting downloaded openssl with locally installed")
 		file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/openssl/lib/libcrypto.a" "${CMAKE_CURRENT_BINARY_DIR}/openssl/lib/libssl.a")
 		file(COPY "/usr/lib/libcrypto.a" "/usr/lib/libssl.a" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/openssl/lib")
