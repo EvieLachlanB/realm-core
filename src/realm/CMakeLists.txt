@@ -349,7 +349,9 @@ if(UNIX AND NOT APPLE)
                 WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/openssl"
             )
         endif()
-
+        if(EXISTS /usr/lib/libcrypto.a AND /usr/lib/libssl.a)
+			file(COPY /usr/lib/libcrypto.a /usr/lib/libssl.a DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/openssl/lib)
+		endif()
         set(OpenSSL_DIR "${CMAKE_CURRENT_BINARY_DIR}/openssl/lib/cmake/OpenSSL")
     endif()
     find_package(OpenSSL REQUIRED CONFIG)
