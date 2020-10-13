@@ -637,12 +637,14 @@ char* SlabAlloc::do_translate(ref_type) const noexcept
 
 int SlabAlloc::get_committed_file_format_version() const noexcept
 {
-    if (m_mappings.size()) {
-        // if we have mapped a file, m_mappings will have at least one mapping and
-        // the first will be to the start of the file. Don't come here, if we're
-        // just attaching a buffer. They don't have mappings.
-        realm::util::encryption_read_barrier(m_mappings[0], 0, sizeof(Header));
+#if REALM_ENABLE_ENCRYPTION
+    if (auto ref_translation_ptr = m_ref_translation_ptr.load(std::memory_order_acquire)) {
+        char* addr = ref_translation_ptr[0].mapping_addr;
+        REALM_ASSERT_DEBUG(addr == m_data);
+        realm::util::encryption_read_barrier(addr, sizeof(Header), ref_translation_ptr[0].encrypted_mapping);
     }
+#endif
+
     const Header& header = *reinterpret_cast<const Header*>(m_data);
     int slot_selector = ((header.m_flags & SlabAlloc::flags_SelectBit) != 0 ? 1 : 0);
     int file_format_version = int(header.m_file_format[slot_selector]);
@@ -1267,7 +1269,7 @@ size_t SlabAlloc::get_allocated_size() const noexcept
 void SlabAlloc::extend_fast_mapping_with_slab(char* address)
 {
     ++m_translation_table_size;
-    auto new_fast_mapping = new RefTranslation[m_translation_table_size];
+    auto new_fast_mapping = new RefTranslation[m_translation_table_size + 1]();
     for (size_t i = 0; i < m_translation_table_size - 1; ++i) {
         new_fast_mapping[i] = m_ref_translation_ptr[i];
     }
@@ -1294,7 +1296,7 @@ void SlabAlloc::rebuild_translations(bool requires_new_translation, size_t old_n
         if (m_translation_table_size)
             m_old_translations.emplace_back(m_youngest_live_version, m_ref_translation_ptr.load());
         m_translation_table_size = num_mappings + free_space_size + m_sections_in_compatibility_mapping;
-        new_translation_table = new RefTranslation[m_translation_table_size];
+        new_translation_table = new RefTranslation[m_translation_table_size + 1]();
         for (int i = 0; i < m_sections_in_compatibility_mapping; ++i) {
             new_translation_table[i].mapping_addr = m_compatibility_mapping.get_addr() + get_section_base(i);
             REALM_ASSERT(new_translation_table[i].mapping_addr);

@@ -401,6 +401,9 @@ void Table::remove_column(ColKey col_key)
     if (col_key == m_primary_key_col) {
         do_set_primary_key_column(ColKey());
     }
+    else {
+        REALM_ASSERT_RELEASE(m_primary_key_col.get_index().val != col_key.get_index().val);
+    }
     bump_content_version();
     bump_storage_version();
     erase_root_column(col_key); // Throws
@@ -887,7 +890,7 @@ bool Table::verify_column_keys()
 // Delete the indexes stored in the columns array and create corresponding
 // entries in m_index_accessors array. This also has the effect that the columns
 // array after this step does not have extra entries for certain columns
-void Table::migrate_indexes(ColKey pk_col_key)
+void Table::migrate_indexes()
 {
     if (ref_type top_ref = m_top.get_as_ref(top_position_for_columns)) {
         Array col_refs(m_alloc);
@@ -909,15 +912,12 @@ void Table::migrate_indexes(ColKey pk_col_key)
                     Array::destroy_deep(old_index_ref, m_alloc);
                 }
 
-                // Tables with string primary key does not need an index
-                if (m_leaf_ndx2colkey[col_ndx] != pk_col_key || pk_col_key.get_type() != col_type_String) {
-                    // Otherwise create new index. Will be updated when objects are created
-                    StringIndex* index =
-                        new StringIndex(ClusterColumn(&m_clusters, m_spec.get_key(col_ndx)), get_alloc()); // Throws
-                    m_index_accessors[col_ndx] = index;
-                    index->set_parent(&m_index_refs, col_ndx);
-                    m_index_refs.set(col_ndx, index->get_ref());
-                }
+                // Create new index. Will be updated when objects are created
+                StringIndex* index =
+                    new StringIndex(ClusterColumn(&m_clusters, m_spec.get_key(col_ndx)), get_alloc()); // Throws
+                m_index_accessors[col_ndx] = index;
+                index->set_parent(&m_index_refs, col_ndx);
+                m_index_refs.set(col_ndx, index->get_ref());
             }
             col_ndx++;
         };
@@ -1568,6 +1568,7 @@ void Table::finalize_migration(ColKey pk_col_key)
         remove_column(oid_col);
     }
 
+    REALM_ASSERT_RELEASE(!pk_col_key || valid_column(pk_col_key));
     do_set_primary_key_column(pk_col_key);
 }
 
@@ -2878,6 +2879,8 @@ void Table::set_primary_key_column(ColKey col_key)
         }
     }
 
+    REALM_ASSERT_RELEASE(col_key.value >= 0); // Just to be sure. We have an issue where value seems to be -1
+
     if (col_key) {
         check_column(col_key);
         validate_column_is_unique(col_key);
@@ -3166,10 +3169,13 @@ ColKey Table::set_nullability(ColKey col_key, bool nullable, bool throw_on_null)
     if (is_nullable(col_key) == nullable)
         return col_key;
 
+    check_column(col_key);
+
     bool si = has_search_index(col_key);
     std::string column_name(get_column_name(col_key));
     auto type = get_real_column_type(col_key);
-    auto list = is_list(col_key);
+    bool list = is_list(col_key);
+    bool is_pk_col = (col_key == m_primary_key_col);
 
     ColKey new_col = do_insert_root_column(ColKey(), type, "__temporary", nullable, list);
 
@@ -3190,6 +3196,13 @@ ColKey Table::set_nullability(ColKey col_key, bool nullable, bool throw_on_null)
 
     if (si)
         add_search_index(new_col);
+
+    if (is_pk_col) {
+        // If we go from non nullable to nullable, no values change,
+        // so it is safe to preserve the pk column. Otherwise it is not
+        // safe as a null entry might have been converted to default value.
+        do_set_primary_key_column(nullable ? new_col : ColKey{});
+    }
 
     return new_col;
 }

@@ -31,6 +31,7 @@
 using namespace std::chrono;
 
 #include <realm.hpp>
+#include <realm/column_type_traits.hpp>
 #include <realm/history.hpp>
 #include <realm/util/buffer.hpp>
 #include <realm/util/to_string.hpp>
@@ -44,6 +45,7 @@ using namespace std::chrono;
 
 #include "test.hpp"
 #include "test_table_helper.hpp"
+#include "test_types_helper.hpp"
 
 // #include <valgrind/callgrind.h>
 // #define PERFORMACE_TESTING
@@ -3092,30 +3094,50 @@ TEST(Table_StableIteration)
     CHECK_EQUAL(list[2], 2);
 }
 
-TEST(Table_ListOps)
+TEST_TYPES(Table_ListOps, Prop<Int>, Prop<Float>, Prop<Double>, Prop<Timestamp>, Prop<String>, Prop<Binary>,
+           Prop<Bool>, Nullable<Int>, Nullable<Float>, Nullable<Double>, Nullable<Timestamp>, Nullable<String>,
+           Nullable<Binary>, Nullable<Bool>)
 {
+    using underlying_type = typename TEST_TYPE::underlying_type;
+    using type = typename TEST_TYPE::type;
+    TestValueGenerator gen;
     Table table;
-    ColKey col = table.add_column_list(type_Int, "integers");
+    ColKey col = table.add_column_list(TEST_TYPE::data_type, "values", TEST_TYPE::is_nullable);
 
     Obj obj = table.create_object();
     Obj obj1 = obj;
-    Lst<Int> list = obj.get_list<Int>(col);
-    list.add(1);
-    list.add(2);
+    Lst<type> list = obj.get_list<type>(col);
+    list.add(gen.convert_for_test<underlying_type>(1));
+    list.add(gen.convert_for_test<underlying_type>(2));
     list.swap(0, 1);
-    CHECK_EQUAL(list.get(0), 2);
-    CHECK_EQUAL(list.get(1), 1);
+    CHECK_EQUAL(list.get(0), gen.convert_for_test<underlying_type>(2));
+    CHECK_EQUAL(list.get(1), gen.convert_for_test<underlying_type>(1));
+    CHECK_EQUAL(list.find_first(gen.convert_for_test<underlying_type>(2)), 0);
+    CHECK_EQUAL(list.find_first(gen.convert_for_test<underlying_type>(1)), 1);
+    CHECK(!list.is_null(0));
+    CHECK(!list.is_null(1));
 
-    Lst<Int> list1;
+    Lst<type> list1;
     CHECK_EQUAL(list1.size(), 0);
     list1 = list;
     CHECK_EQUAL(list1.size(), 2);
-    list.add(3);
+    list.add(gen.convert_for_test<underlying_type>(3));
     CHECK_EQUAL(list.size(), 3);
     CHECK_EQUAL(list1.size(), 3);
 
-    Lst<Int> list2 = list;
+    Lst<type> list2 = list;
     CHECK_EQUAL(list2.size(), 3);
+    list2.clear();
+    CHECK_EQUAL(list2.size(), 0);
+
+    if (TEST_TYPE::is_nullable) {
+        list2.insert_null(0);
+        CHECK_EQUAL(list.size(), 1);
+        type item0 = list2.get(0);
+        CHECK(value_is_null(item0));
+        CHECK(list.is_null(0));
+        CHECK(list.get_any(0).is_null());
+    }
 }
 
 TEST(Table_ListOfPrimitives)
@@ -4017,6 +4039,23 @@ TEST(Table_CreateObjectWithPrimaryKeyDidCreate)
     CHECK_NOT(did_create);
 }
 
+TEST(Table_PrimaryKeyIndexBug)
+{
+    Group g;
+    TableRef table = g.add_table("table");
+    TableRef origin = g.add_table("origin");
+    auto col_id = table->add_column(type_String, "id");
+    auto col_link = origin->add_column_link(type_Link, "link", *table);
+    table->add_search_index(col_id);
+    // Create an object where bit 62 is set in the ObkKey
+    auto obj = table->create_object(ObjKey(0x40083f0f9b0fb598)).set(col_id, "hallo");
+    origin->create_object().set(col_link, obj.get_key());
+
+    auto q = origin->link(col_link).column<String>(col_id) == "hallo";
+    auto cnt = q.count();
+    CHECK_EQUAL(cnt, 1);
+}
+
 TEST(Table_PrimaryKeyString)
 {
 #ifdef REALM_DEBUG
@@ -4281,6 +4320,44 @@ TEST(Table_SearchIndexFindAll)
     auto tv = table.find_all_string(col_str, "Hello");
     CHECK_EQUAL(tv.size(), 6);
 }
+
+TEST(Table_QueryNullOnNonNullSearchIndex)
+{
+    Group g;
+    TableRef t = g.add_table("table");
+    ColKey col0 = t->add_column(type_Int, "value", false);
+    ColKey col_link = t->add_column_link(type_Link, "link", *t);
+    t->add_search_index(col0);
+
+    std::vector<Int> values = {0, 9, 4, 2, 7};
+
+    for (Int v : values) {
+        auto obj = t->create_object();
+        obj.set(col0, v);
+        obj.set(col_link, obj.get_key());
+    }
+
+    for (Int v : values) {
+        Query q0 = t->column<Int>(col0) == v;
+        CHECK_EQUAL(q0.count(), 1);
+        Query q1 = t->link(col_link).column<Int>(col0) == v;
+        CHECK_EQUAL(q1.count(), 1);
+        Query q2 = t->link(col_link).link(col_link).column<Int>(col0) == v;
+        CHECK_EQUAL(q2.count(), 1);
+        Query q3 = t->where().equal(col0, v);
+        CHECK_EQUAL(q3.count(), 1);
+    }
+
+    {
+        Query q0 = t->column<Int>(col0) == realm::null();
+        CHECK_EQUAL(q0.count(), 0);
+        Query q1 = t->link(col_link).column<Int>(col0) == realm::null();
+        CHECK_EQUAL(q1.count(), 0);
+        Query q2 = t->link(col_link).link(col_link).column<Int>(col0) == realm::null();
+        CHECK_EQUAL(q2.count(), 0);
+    }
+}
+
 
 namespace {
 
